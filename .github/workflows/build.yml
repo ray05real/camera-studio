@@ -1,0 +1,74 @@
+# Builds the iPhone app on one of GitHub's Macs every time a change is saved to GitHub, and publishes an unsigned
+# .ipa (Releases on the repository's page). The sideloading app (Kravasigner) signs it with the owner's certificate.
+# Copied from the owner's to-do app (ray05real/todo-widgets).
+name: Build the .ipa
+
+on:
+  push:
+    branches: [main]
+    paths: ["ios/**", ".github/workflows/build.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          [ -z "$XCODE" ] && XCODE=$(ls -d /Applications/Xcode_*.app | grep -iv beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen xcbeautify
+
+      - name: Make the Xcode project
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project CameraStudio.xcodeproj -target CameraStudio -configuration Release -sdk iphoneos \
+            SYMROOT="$PWD/build" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            build 2>&1 | tee build.log | xcbeautify --renderer github-actions
+
+      - name: Pack the .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Release-iphoneos/CameraStudio.app Payload/
+          find Payload -maxdepth 3 | head -30
+          zip -qry CameraStudio.ipa Payload
+          ls -lh CameraStudio.ipa
+
+      - name: Publish the .ipa
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: ${{ github.event.head_commit.message }}
+          files: ios/CameraStudio.ipa
+          make_latest: true
+
+      - name: Publish the log of a failed build
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-log
+          name: Last failed build's log
+          prerelease: true
+          files: ios/build.log

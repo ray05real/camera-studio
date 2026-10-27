@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera Studio films with the iPhone's cameras and shows the picture on your PC.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Camera Studio records sound with your videos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Camera Studio saves each video to your Photos.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Camera Studio talks to the Camera Studio app on your PC over your Wi-Fi.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_camstudio._tcp</string>
+	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UIStatusBarHidden</key>
+	<true/>
+</dict>
+</plist>
