@@ -40,6 +40,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
     private var hasMic = false
     private var caps: [String: Any] = [:]
     private var formatLabel = ""
+    private var bitrate = 0.0
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
     private var status = "Starting the camera…"
@@ -114,6 +115,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
             self.session.startRunning()
             self.applyControls(force: true)
             self.applyMic()
+            self.bitrate = Camera.averageBitrate(self.recommendedVideoSettings(codec: self.currentCodec))
             self.status = self.session.isRunning ? "running" : "The camera didn't start."
             self.updateShared()
             self.delegate?.cameraStateChanged()
@@ -313,6 +315,21 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
         let dims = CMVideoFormatDescriptionGetDimensions(d.activeFormat.formatDescription)
         formatLabel = "\(dims.width)×\(dims.height) · \(Int(settings.fps)) fps · \(settings.hdr ? "HDR (HLG, 10-bit)" : "SDR")"
         computeCaps(d)
+        bitrate = Camera.averageBitrate(recommendedVideoSettings(codec: currentCodec))
+    }
+
+    private var currentCodec: AVVideoCodecType { (settings.codec == "h264" && !settings.hdr) ? .h264 : .hevc }
+
+    /// Apple's settings for recording this format, or nil while the camera isn't ready. AVFoundation throws an
+    /// exception (which closes the app) if asked for a codec it doesn't list right now, so check first. Session queue.
+    private func recommendedVideoSettings(codec: AVVideoCodecType) -> [String: Any]? {
+        guard videoOutput.connection(with: .video) != nil,
+              videoOutput.availableVideoCodecTypesForAssetWriter(writingTo: .mov).contains(codec) else { return nil }
+        return videoOutput.recommendedVideoSettings(forVideoCodecType: codec, assetWriterOutputFileType: .mov) as? [String: Any]
+    }
+
+    private static func averageBitrate(_ video: [String: Any]?) -> Double {
+        ((video?[AVVideoCompressionPropertiesKey] as? [String: Any])?[AVVideoAverageBitRateKey] as? NSNumber)?.doubleValue ?? 0
     }
 
     private func computeCaps(_ d: AVCaptureDevice) {
@@ -447,6 +464,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                 self.applyControls(force: false, old: old)
                 if old.micInput != new.micInput || old.micSource != new.micSource { self.applyMic() }
                 if old.exposure.mode != new.exposure.mode, let d = self.device { self.computeCaps(d) }
+                if old.codec != new.codec { self.bitrate = Camera.averageBitrate(self.recommendedVideoSettings(codec: self.currentCodec)) }
             }
             self.updateShared()
             self.settings.save()
@@ -627,10 +645,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                 "physical": sh.physical,
                 "looksOnRecording": sh.looksOnRecording,
             ]
-            let codec: AVVideoCodecType = (self.settings.codec == "h264" && !self.settings.hdr) ? .h264 : .hevc
-            let video = self.videoOutput.recommendedVideoSettings(forVideoCodecType: codec, assetWriterOutputFileType: .mov) as? [String: Any]
-            let bitrate = ((video?[AVVideoCompressionPropertiesKey] as? [String: Any])?[AVVideoAverageBitRateKey] as? NSNumber)?.doubleValue ?? 0
-            state["bitrate"] = finite(bitrate)
+            state["bitrate"] = finite(self.bitrate)
             state["recording"] = ["active": r.active, "name": r.name, "startWall": finite(r.startWall),
                                   "elapsed": finite(r.startedAt.map { Date().timeIntervalSince($0) } ?? 0),
                                   "bitrate": finite(r.bitrate)]
@@ -682,9 +697,9 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
             }
             let s = self.settings
             let sh = self.shared.get
-            let codec: AVVideoCodecType = (s.codec == "h264" && !s.hdr) ? .h264 : .hevc
-            guard let video = self.videoOutput.recommendedVideoSettings(forVideoCodecType: codec, assetWriterOutputFileType: .mov) as? [String: Any] else {
-                self.delegate?.cameraRecordingFailed("The camera didn't offer video settings.")
+            let codec = self.currentCodec
+            guard let video = self.recommendedVideoSettings(codec: codec) else {
+                self.delegate?.cameraRecordingFailed("The camera isn't ready to record yet. Try again in a moment.")
                 return
             }
             let audio = self.hasMic ? (self.audioOutput.recommendedAudioSettingsForAssetWriter(writingTo: .mov) as? [String: Any]) : nil
@@ -693,7 +708,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
             let name = Camera.newFileName()
             let url = Camera.recordingsFolder.appendingPathComponent(name)
             try? FileManager.default.removeItem(at: url)
-            let bitrate = ((video[AVVideoCompressionPropertiesKey] as? [String: Any])?[AVVideoAverageBitRateKey] as? NSNumber)?.doubleValue ?? 0
+            let bitrate = Camera.averageBitrate(video)
             let config = Recorder.Config(
                 url: url, videoSettings: video, audioSettings: audio,
                 transform: CGAffineTransform(rotationAngle: CGFloat(Double(sh.angle) * .pi / 180)),

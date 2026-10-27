@@ -11,7 +11,9 @@ struct PhoneView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if model.dark { darkScreen } else { mainScreen }
+            // The black screen lies on top: taking the camera view away would make the camera rearrange itself.
+            mainScreen
+            if model.dark { darkScreen.ignoresSafeArea() }
             if let n = model.countdown {
                 Text("\(n)")
                     .font(.system(size: 240, weight: .heavy, design: .rounded))
