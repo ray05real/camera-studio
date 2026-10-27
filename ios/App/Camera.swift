@@ -627,6 +627,10 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                 "physical": sh.physical,
                 "looksOnRecording": sh.looksOnRecording,
             ]
+            let codec: AVVideoCodecType = (self.settings.codec == "h264" && !self.settings.hdr) ? .h264 : .hevc
+            let video = self.videoOutput.recommendedVideoSettings(forVideoCodecType: codec, assetWriterOutputFileType: .mov) as? [String: Any]
+            let bitrate = ((video?[AVVideoCompressionPropertiesKey] as? [String: Any])?[AVVideoAverageBitRateKey] as? NSNumber)?.doubleValue ?? 0
+            state["bitrate"] = finite(bitrate)
             state["recording"] = ["active": r.active, "name": r.name, "startWall": finite(r.startWall),
                                   "elapsed": finite(r.startedAt.map { Date().timeIntervalSince($0) } ?? 0),
                                   "bitrate": finite(r.bitrate)]

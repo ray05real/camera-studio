@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera Studio</title>
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="/icon.png" alt=""><span>Camera Studio</span></div>
+  <div class="pill" id="connPill"><span class="dot"></span><span id="connText">Starting…</span></div>
+  <div class="phoneinfo" id="phoneInfo"></div>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="previewBox" id="previewBox">
+      <img id="preview" alt="" draggable="false">
+      <div class="imgOverlay" id="imgOverlay">
+        <div class="grid" id="grid"><i></i><i></i><i></i><i></i></div>
+        <div class="focusMark" id="focusMark"></div>
+        <div class="recBadge" id="recBadge"><span class="recDot"></span><span id="recTime">00:00</span></div>
+        <div class="formatTag" id="formatTag"></div>
+      </div>
+      <div class="countdownBig" id="countdownBig"></div>
+      <div class="banner" id="banner"></div>
+      <div class="cover" id="cover">
+        <div class="coverInner">
+          <div class="spinner"></div>
+          <h2 id="coverTitle">Looking for your iPhone…</h2>
+          <p id="coverText"></p>
+          <ol class="steps">
+            <li>Open <b>Camera Studio</b> on the iPhone.</li>
+            <li>Keep the iPhone on the same Wi-Fi as this PC, or plug it in with the USB cable.</li>
+            <li>If it isn't found, type the address the iPhone shows here:
+              <form id="connectForm" class="connectForm"><input id="addressInput" placeholder="192.168.1.23" inputmode="decimal" autocomplete="off"><button type="submit">Connect</button></form>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="recordBar">
+      <div class="shape seg big" data-key="orientation" title="The shape of the video">
+        <button data-v="horizontal"><svg viewBox="0 0 28 20"><rect x="1.5" y="3.5" width="25" height="13" rx="2.5"/></svg>Horizontal</button>
+        <button data-v="vertical"><svg viewBox="0 0 28 20"><rect x="8.5" y="1" width="11" height="18" rx="2.5"/></svg>Vertical</button>
+      </div>
+      <div class="recCenter">
+        <button class="recBtn" id="recBtn" title="Start / stop recording (Space)"><span></span></button>
+        <div class="recLabel" id="recLabel">Record</div>
+      </div>
+      <div class="recOptions">
+        <label class="switch"><input type="checkbox" id="countdownToggle"><span></span>3-2-1 countdown</label>
+        <div class="hint">Space bar starts and stops</div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel" id="panel">
+    <details class="card" data-card="camera" open>
+      <summary>Camera &amp; zoom</summary>
+      <div class="row"><div class="seg" data-key="position"><button data-v="back">Back camera</button><button data-v="front">Front camera</button></div></div>
+      <div class="row"><span class="label">Lens</span><div class="chips" id="lensChips"></div></div>
+      <div class="row zoomRow"><div class="zoomPresets" id="zoomPresets"></div><span class="readout big" id="zoomReadout">1×</span></div>
+      <input type="range" id="zoomSlider" min="0" max="1000" step="1">
+    </details>
+
+    <details class="card" data-card="video" open>
+      <summary>Video</summary>
+      <div class="row"><span class="label">Size</span><div class="seg" data-key="resolution"><button data-v="4k">4K</button><button data-v="1080p">1080p</button></div></div>
+      <div class="row"><span class="label">Frame rate</span><div class="chips" id="fpsChips"></div></div>
+      <div class="row"><label class="switch"><input type="checkbox" id="hdrToggle"><span></span>HDR (10-bit, brighter highlights)</label></div>
+      <div class="row"><span class="label">Codec</span><div class="seg" data-key="codec"><button data-v="hevc">HEVC</button><button data-v="h264">H.264</button></div></div>
+      <div class="row"><span class="label">Stabilisation</span><div class="seg small" data-key="stabilization" id="stabSeg"><button data-v="off">Off</button><button data-v="standard">Standard</button><button data-v="cinematic">Cinematic</button><button data-v="extended">Extended</button></div></div>
+      <p class="note" id="videoNote"></p>
+    </details>
+
+    <details class="card" data-card="focus" open>
+      <summary>Focus</summary>
+      <div class="row"><div class="seg" data-key="focus.mode"><button data-v="auto">Auto</button><button data-v="locked">Lock</button><button data-v="manual">Manual</button></div></div>
+      <div class="sliderRow"><span class="end">Near</span><input type="range" id="focusSlider" min="0" max="1000" step="1"><span class="end">Far</span></div>
+      <p class="note">Click the picture to focus (and expose) there.</p>
+    </details>
+
+    <details class="card" data-card="exposure" open>
+      <summary>Exposure <span class="sumReadout" id="expReadout"></span></summary>
+      <div class="row"><div class="seg" data-key="exposure.mode"><button data-v="auto">Auto</button><button data-v="locked">Lock</button><button data-v="manual">Manual</button></div></div>
+      <div id="expAuto">
+        <div class="sliderRow"><span class="end">Darker</span><input type="range" id="biasSlider" min="-30" max="30" step="1"><span class="end">Brighter</span></div>
+        <div class="row"><span class="readout" id="biasReadout">0 EV</span><button class="link" id="biasReset">Reset</button></div>
+      </div>
+      <div id="expManual">
+        <div class="sliderRow"><span class="end w">ISO</span><input type="range" id="isoSlider" min="0" max="1000" step="1"><span class="readout" id="isoReadout"></span></div>
+        <div class="sliderRow"><span class="end w">Shutter</span><input type="range" id="shutterSlider" min="0" max="10" step="1"><span class="readout" id="shutterReadout"></span></div>
+        <div class="row"><button class="link" id="shutter180">Natural motion blur (1/<span id="s180">50</span>)</button></div>
+      </div>
+    </details>
+
+    <details class="card" data-card="wb" open>
+      <summary>White balance <span class="sumReadout" id="wbReadout"></span></summary>
+      <div class="row"><div class="seg" data-key="wb.mode"><button data-v="auto">Auto</button><button data-v="locked">Lock</button><button data-v="manual">Manual</button></div></div>
+      <div id="wbManual">
+        <div class="sliderRow"><span class="end w">Warmth</span><input type="range" id="tempSlider" class="temp" min="2500" max="8000" step="50"><span class="readout" id="tempReadout"></span></div>
+        <div class="sliderRow"><span class="end w">Tint</span><input type="range" id="tintSlider" class="tint" min="-60" max="60" step="1"><span class="readout" id="tintReadout"></span></div>
+        <div class="chips small" id="wbPresets">
+          <button data-k="3200">Indoor bulbs</button><button data-k="4000">Office light</button><button data-k="5500">Daylight</button><button data-k="6500">Cloudy</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="card" data-card="look" open>
+      <summary>Light &amp; look</summary>
+      <div class="row" id="torchRow"><label class="switch"><input type="checkbox" id="torchToggle"><span></span>Torch</label><input type="range" id="torchSlider" min="2" max="100" step="1" class="grow"></div>
+      <div class="chips" id="lookChips"></div>
+      <p class="note" id="lookNote"></p>
+    </details>
+
+    <details class="card" data-card="sound" open>
+      <summary>Sound</summary>
+      <div class="row"><div class="seg" id="audioSourceSeg"><button data-v="iphone">iPhone microphone</button><button data-v="pc">PC microphone</button></div></div>
+      <div class="meterRow"><span class="end w">iPhone</span><div class="meter" id="meterPhone"><div class="fill"></div><div class="peak"></div></div><span class="db" id="dbPhone"></span></div>
+      <div class="row"><span class="end w">Input</span><select id="micInput"></select></div>
+      <div class="row" id="micSourceRow"><span class="end w">Which mic</span><select id="micSource"></select></div>
+      <div class="meterRow"><span class="end w">PC</span><div class="meter" id="meterPc"><div class="fill"></div><div class="peak"></div></div><span class="db" id="dbPc"></span></div>
+      <div class="row"><span class="end w">PC mic</span><select id="pcMicSelect"></select><button class="small" id="pcMicAllow">Allow</button></div>
+      <div class="row"><label class="switch"><input type="checkbox" id="cleanupToggle"><span></span>Clean up the PC mic (noise and echo)</label></div>
+      <p class="note" id="soundNote"></p>
+    </details>
+
+    <details class="card" data-card="preview">
+      <summary>Preview</summary>
+      <div class="row"><label class="switch"><input type="checkbox" id="gridToggle"><span></span>Grid (G)</label><label class="switch"><input type="checkbox" id="mirrorToggle"><span></span>Mirror</label></div>
+      <div class="row"><span class="label">Picture</span><div class="seg" data-key="previewSize"><button data-v="960">Smooth</button><button data-v="1280">Sharp</button></div></div>
+      <p class="note">The preview is a small copy; the recording is always full quality.</p>
+    </details>
+
+    <details class="card" data-card="connection">
+      <summary>Connection &amp; files</summary>
+      <p class="note" id="connNote"></p>
+      <form id="connectForm2" class="connectForm"><input id="addressInput2" placeholder="iPhone address, e.g. 192.168.1.23" autocomplete="off"><button type="submit">Connect</button></form>
+      <p class="note" id="folderNote"></p>
+      <div class="row"><button id="openFolder">Open the videos folder</button></div>
+    </details>
+  </aside>
+</main>
+
+<footer class="takes" id="takes">
+  <div class="takesHead"><span>Videos</span><button class="link" id="openFolder2">Open folder</button></div>
+  <div class="takesList" id="takesList"><div class="empty">Your videos appear here after you record. They're saved to the iPhone's Photos and copied to this PC.</div></div>
+</footer>
+
+<div class="toasts" id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>
