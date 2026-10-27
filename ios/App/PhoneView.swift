@@ -100,6 +100,7 @@ struct PhoneView: View {
             Toggle("Go black by itself when the PC is connected", isOn: $model.autoDark)
                 .font(.system(size: 14)).foregroundStyle(.secondary)
                 .tint(.green)
+            Text("Build \(model.build)").font(.system(size: 11)).foregroundStyle(.white.opacity(0.3))
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

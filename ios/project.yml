@@ -22,6 +22,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ray05real.camerastudio
         PRODUCT_NAME: CameraStudio
+        SWIFT_OBJC_BRIDGING_HEADER: App/CameraStudio-Bridging-Header.h
+        CLANG_ENABLE_OBJC_ARC: "YES"
         GENERATE_INFOPLIST_FILE: "YES"
         INFOPLIST_FILE: Config/App-Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: "Camera Studio"

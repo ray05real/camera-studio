@@ -16,6 +16,7 @@ final class PhoneModel: ObservableObject {
     @Published var problem: String?
     @Published var dark = false
     @Published var autoDark = true
+    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
     var lastTouch = Date()
 
     func touched() {
@@ -39,8 +40,16 @@ final class Studio: CameraDelegate, ServerDelegate {
     private var stateScheduled = false
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
     private let phoneInfo = Locked<[String: Any]>([:])
+    /// Why the app closed last time (an uncaught exception), until a PC has been told.
+    private var lastCrash: String?
 
     func start() {
+        lastCrash = CSTakeLastCrash()
+        CSInstallCrashRecorder()
+        if let crash = lastCrash {
+            let firstLine = crash.components(separatedBy: "\n").first ?? crash
+            DispatchQueue.main.async { self.show("Last time the app closed because: \(firstLine)") }
+        }
         camera.delegate = self
         server.delegate = self
         server.start()
@@ -186,9 +195,13 @@ final class Studio: CameraDelegate, ServerDelegate {
             peer.pcName = m["pc"] as? String ?? "PC"
             server.markControl(peer)
             peer.send(["op": "hello", "app": "CameraStudio", "version": 1, "model": DeviceInfo.modelName,
-                       "port": Int(Wire.port), "usb": peer.isUSB])
+                       "port": Int(Wire.port), "usb": peer.isUSB, "build": model.build])
             sendState(to: peer)
             sendFiles(to: peer)
+            if let crash = lastCrash {
+                peer.send(["op": "crash", "text": crash])
+                lastCrash = nil
+            }
         case "ping":
             peer.send(["op": "pong", "t0": m["t0"] ?? 0, "phone": Date().timeIntervalSince1970 * 1000])
         case "state":

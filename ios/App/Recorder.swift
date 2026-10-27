@@ -150,6 +150,12 @@ final class Recorder {
         }
     }
 
+    /// Drops the video being written (after an error).
+    func abandon() {
+        if let w = writer, w.status == .writing { w.cancelWriting() }
+        reset()
+    }
+
     private func fail(_ message: String) {
         writer?.cancelWriting()
         reset()

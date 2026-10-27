@@ -26,6 +26,7 @@ struct CamSettings: Codable, Equatable {
     var fps: Double = 30
     var hdr = false
     var codec = "hevc"              // hevc | h264
+    var quality = "standard"        // standard (Apple's data rate, like the Camera app) | high (2.5x)
     var orientation = "horizontal"  // horizontal | vertical
     var stabilization = "off"       // off | standard | cinematic | extended
     var look = "none"
@@ -36,8 +37,8 @@ struct CamSettings: Codable, Equatable {
     var wb = WhiteBalanceSettings()
     var micInput = ""               // "" = automatic, else an audio input's id
     var micSource = ""              // "" = automatic, else which built-in mic (bottom / front / back)
-    var previewSize = 960           // long side of the PC preview, in pixels
-    var previewQuality = 0.6        // JPEG quality of the PC preview
+    var previewSize = 1280          // long side of the PC preview, in pixels
+    var previewQuality = 0.7        // JPEG quality of the PC preview
 
     func dictionary() -> [String: Any] {
         guard let data = try? JSONEncoder().encode(self),

@@ -285,33 +285,44 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
         settings.fps = choice.fps
         settings.hdr = choice.hdr
         if let note = choice.note { delegate?.cameraMessage(note) }
-        do {
-            try d.lockForConfiguration()
-            if let f = choice.format { d.activeFormat = f }
-            let duration = CMTime(value: 1, timescale: CMTimeScale(choice.fps.rounded()))
-            d.activeVideoMinFrameDuration = duration
-            d.activeVideoMaxFrameDuration = duration
-            let spaces = d.activeFormat.supportedColorSpaces
-            if choice.hdr, spaces.contains(.HLG_BT2020) {
-                d.activeColorSpace = .HLG_BT2020
-            } else if spaces.contains(.sRGB) {
-                d.activeColorSpace = .sRGB
+        // AVFoundation throws (closing the app) on a combination it doesn't accept; catch it and say so instead.
+        var locked = false
+        let problem = CSTry {
+            do {
+                try d.lockForConfiguration()
+                locked = true
+                if let f = choice.format { d.activeFormat = f }
+                let duration = CMTime(value: 1, timescale: CMTimeScale(choice.fps.rounded()))
+                d.activeVideoMinFrameDuration = duration
+                d.activeVideoMaxFrameDuration = duration
+                let spaces = d.activeFormat.supportedColorSpaces
+                if choice.hdr, spaces.contains(.HLG_BT2020) {
+                    d.activeColorSpace = .HLG_BT2020
+                } else if spaces.contains(.sRGB) {
+                    d.activeColorSpace = .sRGB
+                }
+                d.unlockForConfiguration()
+                locked = false
+            } catch {
+                self.delegate?.cameraMessage("The camera couldn't be set up: \(error.localizedDescription)")
             }
-            d.unlockForConfiguration()
-        } catch {
-            delegate?.cameraMessage("The camera couldn't be set up: \(error.localizedDescription)")
-        }
-        let pixelFormat = choice.hdr ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-        videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: pixelFormat]
-        if let c = videoOutput.connection(with: .video), c.isVideoStabilizationSupported {
-            let mode = Camera.stabilizationMode(settings.stabilization)
-            c.preferredVideoStabilizationMode = d.activeFormat.isVideoStabilizationModeSupported(mode) ? mode : .off
-            if mode != .off, !d.activeFormat.isVideoStabilizationModeSupported(mode) {
-                settings.stabilization = "off"
-                delegate?.cameraMessage("That stabilisation isn't available in this format.")
+            let pixelFormat = choice.hdr ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            if self.videoOutput.availableVideoPixelFormatTypes.contains(pixelFormat) {
+                self.videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: pixelFormat]
+            }
+            if let c = self.videoOutput.connection(with: .video), c.isVideoStabilizationSupported {
+                let mode = Camera.stabilizationMode(self.settings.stabilization)
+                c.preferredVideoStabilizationMode = d.activeFormat.isVideoStabilizationModeSupported(mode) ? mode : .off
+                if mode != .off, !d.activeFormat.isVideoStabilizationModeSupported(mode) {
+                    self.settings.stabilization = "off"
+                    self.delegate?.cameraMessage("That stabilisation isn't available in this format.")
+                }
             }
         }
-        session.commitConfiguration()
+        if locked { d.unlockForConfiguration() }
+        if let problem = CSTry({ self.session.commitConfiguration() }) ?? problem {
+            delegate?.cameraMessage("The camera couldn't switch to that (\(problem)).")
+        }
         let dims = CMVideoFormatDescriptionGetDimensions(d.activeFormat.formatDescription)
         formatLabel = "\(dims.width)×\(dims.height) · \(Int(settings.fps)) fps · \(settings.hdr ? "HDR (HLG, 10-bit)" : "SDR")"
         computeCaps(d)
@@ -323,9 +334,14 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
     /// Apple's settings for recording this format, or nil while the camera isn't ready. AVFoundation throws an
     /// exception (which closes the app) if asked for a codec it doesn't list right now, so check first. Session queue.
     private func recommendedVideoSettings(codec: AVVideoCodecType) -> [String: Any]? {
-        guard videoOutput.connection(with: .video) != nil,
-              videoOutput.availableVideoCodecTypesForAssetWriter(writingTo: .mov).contains(codec) else { return nil }
-        return videoOutput.recommendedVideoSettings(forVideoCodecType: codec, assetWriterOutputFileType: .mov) as? [String: Any]
+        var result: [String: Any]?
+        let problem = CSTry {
+            guard self.videoOutput.connection(with: .video) != nil,
+                  self.videoOutput.availableVideoCodecTypesForAssetWriter(writingTo: .mov).contains(codec) else { return }
+            result = self.videoOutput.recommendedVideoSettings(forVideoCodecType: codec, assetWriterOutputFileType: .mov) as? [String: Any]
+        }
+        if let problem { NSLog("Camera Studio: recommendedVideoSettings threw: %@", problem) }
+        return result
     }
 
     private static func averageBitrate(_ video: [String: Any]?) -> Double {
@@ -477,8 +493,8 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
             guard let d = self.device else { return }
             let mult = Double(d.displayVideoZoomFactorMultiplier)
             let factor = min(max(value / mult, Double(d.minAvailableVideoZoomFactor)), Double(d.maxAvailableVideoZoomFactor), 25 / mult)
-            do {
-                try d.lockForConfiguration()
+            let problem = CSTry {
+                guard (try? d.lockForConfiguration()) != nil else { return }
                 if smooth {
                     d.ramp(toVideoZoomFactor: CGFloat(factor), withRate: 6)
                 } else {
@@ -486,7 +502,8 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                     d.videoZoomFactor = CGFloat(factor)
                 }
                 d.unlockForConfiguration()
-            } catch {}
+            }
+            if let problem { d.unlockForConfiguration(); self.delegate?.cameraMessage("Zoom didn't work (\(problem)).") }
             self.settings.zoom = factor * mult
             self.settings.save()
             self.delegate?.cameraStateChanged()
@@ -498,8 +515,8 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
         sessionQueue.async {
             guard let d = self.device else { return }
             let point = Camera.devicePoint(p, angle: self.shared.get.angle)
-            do {
-                try d.lockForConfiguration()
+            let problem = CSTry {
+                guard (try? d.lockForConfiguration()) != nil else { return }
                 if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = point }
                 if d.isFocusModeSupported(.continuousAutoFocus) {
                     d.focusMode = .continuousAutoFocus
@@ -511,7 +528,8 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                     if d.isExposureModeSupported(.continuousAutoExposure) { d.exposureMode = .continuousAutoExposure }
                 }
                 d.unlockForConfiguration()
-            } catch {}
+            }
+            if let problem { d.unlockForConfiguration(); self.delegate?.cameraMessage("Focus didn't work (\(problem)).") }
             self.settings.focus.mode = "auto"
             if self.settings.exposure.mode == "locked" { self.settings.exposure.mode = "auto" }
             self.settings.save()
@@ -521,6 +539,13 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
 
     /// Focus, exposure, white balance, zoom and torch. Session queue.
     private func applyControls(force: Bool, old: CamSettings? = nil) {
+        if let problem = CSTry({ self.applyControlsUnchecked(force: force, old: old) }) {
+            device?.unlockForConfiguration()
+            delegate?.cameraMessage("The camera didn't accept that setting (\(problem)).")
+        }
+    }
+
+    private func applyControlsUnchecked(force: Bool, old: CamSettings?) {
         guard let d = device else { return }
         let s = settings
         do { try d.lockForConfiguration() } catch { return }
@@ -645,7 +670,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                 "physical": sh.physical,
                 "looksOnRecording": sh.looksOnRecording,
             ]
-            state["bitrate"] = finite(self.bitrate)
+            state["bitrate"] = finite(self.bitrate * (self.settings.quality == "high" ? 2.5 : 1))
             state["recording"] = ["active": r.active, "name": r.name, "startWall": finite(r.startWall),
                                   "elapsed": finite(r.startedAt.map { Date().timeIntervalSince($0) } ?? 0),
                                   "bitrate": finite(r.bitrate)]
@@ -702,7 +727,10 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                 self.delegate?.cameraRecordingFailed("The camera isn't ready to record yet. Try again in a moment.")
                 return
             }
-            let audio = self.hasMic ? (self.audioOutput.recommendedAudioSettingsForAssetWriter(writingTo: .mov) as? [String: Any]) : nil
+            var audio: [String: Any]?
+            if self.hasMic {
+                _ = CSTry { audio = self.audioOutput.recommendedAudioSettingsForAssetWriter(writingTo: .mov) as? [String: Any] }
+            }
             let dims = CMVideoFormatDescriptionGetDimensions(d.activeFormat.formatDescription)
             let useLook = sh.look != "none" && sh.looksOnRecording
             let name = Camera.newFileName()
@@ -719,13 +747,41 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                 "width": Int(landscape ? dims.width : dims.height), "height": Int(landscape ? dims.height : dims.width),
                 "rotation": sh.angle, "look": useLook ? sh.look : "none", "bitrate": bitrate,
             ]
-            self.rec.set(RecState(active: true, name: name, startWall: 0, startedAt: nil, bitrate: bitrate, info: info))
+            // High quality: 2.5x Apple's data rate. Sound: AAC at 192 kbit/s (mono) or 256 (stereo) instead of ~100.
+            var better = config
+            if s.quality == "high", var props = video[AVVideoCompressionPropertiesKey] as? [String: Any], bitrate > 0 {
+                props[AVVideoAverageBitRateKey] = NSNumber(value: bitrate * 2.5)
+                better.videoSettings[AVVideoCompressionPropertiesKey] = props
+            }
+            if var a = audio, (a[AVFormatIDKey] as? NSNumber)?.uint32Value == kAudioFormatMPEG4AAC {
+                let channels = (a[AVNumberOfChannelsKey] as? NSNumber)?.intValue ?? 1
+                a.removeValue(forKey: AVEncoderBitRatePerChannelKey)
+                a.removeValue(forKey: AVEncoderBitRateStrategyKey)
+                a[AVEncoderBitRateKey] = NSNumber(value: channels >= 2 ? 256_000 : 192_000)
+                better.audioSettings = a
+            }
+            let usedBitrate = s.quality == "high" ? bitrate * 2.5 : bitrate
+            var started = info
+            started["bitrate"] = usedBitrate
+            self.rec.set(RecState(active: true, name: name, startWall: 0, startedAt: nil, bitrate: usedBitrate, info: started))
             self.dataQueue.async {
-                do {
-                    try self.recorder.begin(config)
-                } catch {
+                func attempt(_ c: Recorder.Config) -> String? {
+                    var failure: String?
+                    let thrown = CSTry {
+                        do { try self.recorder.begin(c) } catch { failure = error.localizedDescription }
+                    }
+                    if let reason = thrown ?? failure {
+                        _ = CSTry { self.recorder.abandon() }
+                        return reason
+                    }
+                    return nil
+                }
+                if attempt(better) == nil { return }
+                if let reason = attempt(config) {
                     self.rec.set(RecState())
-                    self.delegate?.cameraRecordingFailed("Recording couldn't start: \(error.localizedDescription)")
+                    self.delegate?.cameraRecordingFailed("Recording couldn't start: \(reason)")
+                } else {
+                    self.delegate?.cameraMessage("High quality or the better sound wasn't accepted, so this video uses Apple's standard settings.")
                 }
             }
         }
@@ -775,7 +831,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output === videoOutput {
-            recorder.appendVideo(sampleBuffer)
+            if let problem = CSTry({ self.recorder.appendVideo(sampleBuffer) }) { recorderThrew(problem) }
             makePreview(sampleBuffer)
         } else {
             var avg: Float = -160, peak: Float = -160
@@ -784,8 +840,15 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCa
                 peak = max(peak, ch.peakHoldLevel)
             }
             audioLevel.set((avg, peak))
-            recorder.appendAudio(sampleBuffer)
+            if let problem = CSTry({ self.recorder.appendAudio(sampleBuffer) }) { recorderThrew(problem) }
         }
+    }
+
+    /// Data queue: the writer threw; give up on this video (what's written so far is lost) and tell the PC.
+    private func recorderThrew(_ problem: String) {
+        guard recorder.phase == .waiting || recorder.phase == .recording else { return }
+        _ = CSTry { self.recorder.abandon() }
+        recordingDidFail("Recording stopped: \(problem)")
     }
 
     func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {}
