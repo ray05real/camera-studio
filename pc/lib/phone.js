@@ -100,19 +100,32 @@ function handshake(sock, route, timeoutMs = 2500) {
   });
 }
 
-/** Every address on the PC's own Wi-Fi / network (a /24 around each of the PC's addresses). */
+const ipToInt = s => s.split('.').reduce((n, x) => ((n << 8) | Number(x)) >>> 0, 0);
+const intToIp = n => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+
+/**
+ * Every address on the PC's own networks, the nearest first (same first three numbers as the PC), using the
+ * network's real size up to 4094 addresses (a /20: big Wi-Fi networks put the phone in another "third number").
+ */
 function subnetHosts() {
-  const hosts = [];
+  const near = [], far = [];
   for (const iface of mdns.localInterfaces()) {
     const p = iface.address.split('.').map(Number);
     const isPrivate = p[0] === 10 || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 192 && p[1] === 168);
     if (!isPrivate) continue;
-    for (let i = 1; i < 255; i++) {
-      const h = `${p[0]}.${p[1]}.${p[2]}.${i}`;
-      if (h !== iface.address) hosts.push(h);
+    const ip = ipToInt(iface.address);
+    let prefix = ipToInt(iface.netmask || '255.255.255.0').toString(2).replace(/0+$/, '').length;
+    prefix = Math.min(30, Math.max(20, prefix));
+    const mask = (0xffffffff << (32 - prefix)) >>> 0;
+    const net = (ip & mask) >>> 0;
+    const size = 2 ** (32 - prefix);
+    for (let i = 1; i < size - 1; i++) {
+      const h = (net + i) >>> 0;
+      if (h === ip) continue;
+      ((h >>> 8) === (ip >>> 8) ? near : far).push(intToIp(h));
     }
   }
-  return [...new Set(hosts)];
+  return [...new Set([...near, ...far])];
 }
 
 /** Tries many addresses at once; resolves with the first that answers as Camera Studio, or null. */
@@ -208,7 +221,7 @@ class PhoneManager extends EventEmitter {
       if (link) return link;
     }
     this.setStatus('searching', 'Checking every address on your Wi-Fi…');
-    const link = await race(subnetHosts().map(host => ({ kind: 'wifi', host, port })), 80, 900);
+    const link = await race(subnetHosts().map(host => ({ kind: 'wifi', host, port })), 160, 800);
     if (link) return link;
     this.setStatus('searching', 'iPhone not found yet. Is Camera Studio open on it, on the same Wi-Fi?');
     return null;
