@@ -86,6 +86,19 @@ Phone → PC: `hello`, `pong`, `state` (settings, caps, format, status, angle, m
 - The iPhone code can only be compiled by the GitHub build: push and read the result (the failed build's log is
   published as the `build-log` release).
 
+## The owner's choices and lessons (27 Oct 2026)
+- No list of videos under the picture (it took too much room): a small **Videos** button in the top bar opens the
+  folder, with one line next to it about the newest video (copying %, Saved ✓, Play).
+- A **full-screen** button on the picture (or F): the picture and the record bar fill the screen.
+- Preview sharpness: Smooth (960) / Sharp (1280) / Best (1920, needs good Wi-Fi or the cable). The owner first thought
+  the video wasn't 4K: that was the small preview; the camera reported 3840×2160.
+- **Never call `recommendedVideoSettings(forVideoCodecType:…)` without checking
+  `availableVideoCodecTypesForAssetWriter(writingTo:)` first**: AVFoundation throws (the app closes) if the camera
+  isn't ready, e.g. while starting or rearranging. Build 2 did this on every state update, so changing a setting or
+  the screen going black closed the app; build 3 checks first and keeps the black screen on top of the camera view.
+- The owner's Wi-Fi is a big network (PC 10.156.205.70/20, iPhone 10.156.203.203): the address search covers the
+  network's real size up to a /20, nearest addresses first; a typed address connects at once.
+
 ## Status
 - 27 Oct 2026: first version. iPhone build 1 compiled first time; PC side tested against the fake iPhone (sync and
   end-to-end tests pass). **Not yet tried on the real iPhone**: the owner's first test is the next step.
