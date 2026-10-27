@@ -646,7 +646,7 @@ function render() {
     $('hdrToggle').disabled = !fpsHdr.includes(s.fps);
     [...document.querySelector('[data-key=codec]').children].forEach(b => { b.disabled = b.dataset.v === 'h264' && s.hdr; });
     [...$('stabSeg').children].forEach(b => { b.disabled = !(c.stabilization || ['off']).includes(b.dataset.v); });
-    const mbps = S.camera.bitrate ? `about ${Math.round(S.camera.bitrate / 1e6)} Mbit/s` : '';
+    const mbps = S.camera.bitrate ? `about ${Math.round(S.camera.bitrate / 1e6)} Mbit/s (${Math.round(S.camera.bitrate / 8e6 * 60)} MB a minute)` : '';
     const notes = [S.camera.format, mbps].filter(Boolean).join(' · ');
     const pal = [30, 60, 120].includes(s.fps) ? ' In the UK, 25 or 50 fps stops lights flickering on camera.' : '';
     const stab = s.stabilization !== 'off' ? ' On a tripod, stabilisation is best off (it crops and delays the preview).' : '';
@@ -706,6 +706,7 @@ function render() {
   // connection card
   const route = S.phone.route;
   $('connNote').textContent = (route === 'usb' ? 'Connected by the USB cable.' : route === 'wifi' ? `Connected over Wi-Fi (${S.phone.host}).` : S.phone.detail) + ' ' +
+    (route ? `iPhone app build ${S.phone.build || '3 or older'}. ` : '') +
     (S.phone.usbService ? 'USB works too: plug in the cable (and tap Trust on the iPhone if it asks).' : 'For the USB cable, install the free Apple Devices app from the Microsoft Store.');
   $('folderNote').textContent = `Videos are saved to ${S.outDir || 'Videos\\Camera Studio'}.`;
   if (S.address && !$('addressInput').value) $('addressInput').value = S.address;

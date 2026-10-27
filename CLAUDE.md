@@ -96,6 +96,15 @@ Phone → PC: `hello`, `pong`, `state` (settings, caps, format, status, angle, m
   `availableVideoCodecTypesForAssetWriter(writingTo:)` first**: AVFoundation throws (the app closes) if the camera
   isn't ready, e.g. while starting or rearranging. Build 2 did this on every state update, so changing a setting or
   the screen going black closed the app; build 3 checks first and keeps the black screen on top of the camera view.
+- Changing 4K → 1080p still closed the app on build 3 (cause unknown without the phone's crash log). Build 4 runs every
+  risky AVFoundation call through `CSTry` (`ObjCCatch.m`, an Objective-C @try/@catch Swift can call, via the bridging
+  header): the PC shows the reason instead of the app closing. An uncaught exception is saved and sent to the PC on
+  the next connection (`crash` message; written to the PC log). The hello carries the app's build number (also on
+  the phone's screen and in the PC's Connection card), so we always know which build the owner is running.
+- The PC app must not have a window to close by mistake: `server.js` relaunches itself hidden (`--child`, detached,
+  windowsHide) and the launcher's window closes at once. Closing the Camera Studio window is the only way to quit.
+- Quality: Standard (Apple's data rate, ~18 Mbit/s at 4K24, like the Camera app) or High (2.5×). Sound is AAC
+  192 kbit/s mono (Apple's default was ~100). The owner's first test file was genuine 3840×2160 HEVC.
 - The owner's Wi-Fi is a big network (PC 10.156.205.70/20, iPhone 10.156.203.203): the address search covers the
   network's real size up to a /20, nearest addresses first; a typed address connects at once.
 

@@ -31,7 +31,7 @@ function makeFrames() {
 function startFakePhone({ port = wire.PORT, clockOffset = 5000, video = null, videoDuration = 10, startDelay = 1.2345 } = {}) {
   const frames = makeFrames();
   const settings = {
-    position: 'back', lens: 'auto', resolution: '4k', fps: 30, hdr: false, codec: 'hevc', orientation: 'horizontal',
+    position: 'back', lens: 'auto', resolution: '4k', fps: 30, hdr: false, codec: 'hevc', quality: 'standard', orientation: 'horizontal',
     stabilization: 'off', look: 'none', torch: 0, zoom: 1,
     focus: { mode: 'auto', lens: 0.5 }, exposure: { mode: 'auto', bias: 0, iso: 200, shutter: 0.02 },
     wb: { mode: 'auto', temp: 5000, tint: 0 }, micInput: '', micSource: '', previewSize: 960, previewQuality: 0.6,
@@ -78,7 +78,7 @@ function startFakePhone({ port = wire.PORT, clockOffset = 5000, video = null, vi
       switch (m.op) {
         case 'hello':
           peers.add(sock);
-          send(sock, { op: 'hello', app: 'CameraStudio', version: 1, model: 'iPhone 16 Pro (fake)', port, usb: false });
+          send(sock, { op: 'hello', app: 'CameraStudio', version: 1, model: 'iPhone 16 Pro (fake)', port, usb: false, build: 'fake' });
           send(sock, state());
           send(sock, fileList());
           break;

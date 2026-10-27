@@ -19,6 +19,13 @@ const CONFIG_FILE = path.join(APP_DIR, 'config.json');
 const LOG_FILE = path.join(APP_DIR, 'camera-studio.log');
 const args = process.argv.slice(2);
 
+// No window of its own: the launcher starts us, we start a hidden copy of ourselves and leave (so there's no
+// black window to close by mistake). Closing the Camera Studio window is what quits it.
+if (!args.includes('--child') && !args.includes('--stay') && !args.includes('--no-window')) {
+  spawn(process.execPath, [__filename, '--child'], { detached: true, windowsHide: true, stdio: 'ignore', cwd: __dirname }).unref();
+  process.exit(0);
+}
+
 fs.mkdirSync(APP_DIR, { recursive: true });
 
 // ---------- log & settings ----------
@@ -76,6 +83,7 @@ function snapshot() {
       detail: phone.detail,
       route: phone.link ? phone.link.route.kind : null,
       host: phone.link && phone.link.route.host,
+      build: phone.link && phone.link.hello ? phone.link.hello.build || '' : '',
       usbService: phone.usbService,
     },
     camera: app.camera,
@@ -106,6 +114,7 @@ function takeFor(name, create = true) {
 
 phone.on('status', () => { log('phone:', phone.status, phone.detail); scheduleState(); });
 phone.on('remember', address => saveConfig());
+phone.on('connected', link => log('iPhone app build', link.hello.build || '(before build 4)'));
 phone.on('disconnected', () => { app.camera = null; scheduleState(); push('event', { type: 'disconnected' }); });
 
 phone.on('preview', jpeg => {
@@ -179,7 +188,12 @@ phone.on('message', m => {
       break;
     }
     case 'message':
+      log('iPhone says:', m.text);
       toast(m.text);
+      break;
+    case 'crash':
+      log('The iPhone app closed last time because:', m.text.replace(/\n/g, ' | '));
+      toast('The iPhone app closed by itself last time. The reason is saved in Camera Studio\'s log.', 'warn');
       break;
   }
 });
