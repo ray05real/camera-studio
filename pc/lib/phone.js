@@ -128,24 +128,28 @@ function subnetHosts() {
   return [...new Set([...near, ...far])];
 }
 
-/** Tries many addresses at once; resolves with the first that answers as Camera Studio, or null. */
-function race(routes, concurrency = 80, timeoutMs = 900) {
+/**
+ * Tries many addresses at once; resolves with the first that answers as Camera Studio, or null
+ * (also null as soon as `stop()` says so, e.g. because the iPhone was found another way).
+ */
+function race(routes, concurrency = 80, timeoutMs = 900, stop = () => false) {
   return new Promise(resolve => {
-    let next = 0, running = 0, winner = null;
+    let next = 0, running = 0, winner = null, gaveUp = false;
     const pump = () => {
-      if (winner) return;
+      if (winner || gaveUp) return;
+      if (stop()) { gaveUp = true; return resolve(null); }
       if (next >= routes.length && running === 0) return resolve(null);
       while (running < concurrency && next < routes.length) {
         const route = routes[next++];
         running++;
         openSocket(route, timeoutMs)
           .then(sock => {
-            if (winner) { sock.destroy(); return null; }
+            if (winner || gaveUp) { sock.destroy(); return null; }
             return handshake(sock, route, 2000);
           })
           .then(link => {
             if (!link) return;
-            if (winner) { link.close('duplicate'); return; }
+            if (winner || gaveUp) { link.close('duplicate'); return; }
             winner = link;
             resolve(link);
           })
@@ -182,18 +186,26 @@ class PhoneManager extends EventEmitter {
     this.emit('status');
   }
 
-  /** Try the address the owner typed in (or one remembered) straight away. */
-  connectTo(address) {
+  /** Try the address the owner typed in straight away (even in the middle of a search). */
+  async connectTo(address) {
     this.config.manualAddress = address;
-    if (this.link) this.link.close('switching to ' + address);
-    if (this.wakeSearch) this.wakeSearch();
+    if (this.link && this.link.route.host === address) return;
+    this.setStatus('searching', `Connecting to ${address}…`);
+    const link = await race([{ kind: 'wifi', host: address, port: wire.PORT }], 1, 2500);
+    if (!link) {
+      if (!this.link) this.setStatus('searching', `No answer from ${address}. Is Camera Studio open on the iPhone?`);
+      return;
+    }
+    if (this.link) { const old = this.link; old.removeAllListeners('closed'); this.link = null; old.close('switching to ' + address); }
+    this.adopt(link);
   }
 
   async loop() {
     while (!this.stopped) {
       if (!this.link) {
         const link = await this.search().catch(() => null);
-        if (link) this.adopt(link);
+        if (link && this.link) link.close('duplicate');
+        else if (link) this.adopt(link);
       }
       await new Promise(r => { this.wakeSearch = r; setTimeout(r, this.link ? 3000 : 1500); });
       this.wakeSearch = null;
@@ -201,6 +213,7 @@ class PhoneManager extends EventEmitter {
   }
 
   async search() {
+    const found = () => !!this.link;
     this.usbService = await usbmux.serviceRunning();
     if (this.usbService) {
       const link = await this.tryUsb();
@@ -211,19 +224,20 @@ class PhoneManager extends EventEmitter {
       .map(host => ({ kind: 'wifi', host, port }));
     if (first.length) {
       this.setStatus('searching', 'Trying the last address…');
-      const link = await race(first, 4, 1500);
-      if (link) return link;
+      const link = await race(first, 4, 1500, found);
+      if (link || found()) return link;
     }
     this.setStatus('searching', 'Looking for your iPhone on the Wi-Fi…');
-    const found = await mdns.browse(1500);
-    if (found.length) {
-      const link = await race(found.map(f => ({ kind: 'wifi', host: f.host, port: f.port })), 8, 2000);
-      if (link) return link;
+    const bonjour = await mdns.browse(1500);
+    if (found()) return null;
+    if (bonjour.length) {
+      const link = await race(bonjour.map(f => ({ kind: 'wifi', host: f.host, port: f.port })), 8, 2000, found);
+      if (link || found()) return link;
     }
     this.setStatus('searching', 'Checking every address on your Wi-Fi…');
-    const link = await race(subnetHosts().map(host => ({ kind: 'wifi', host, port })), 160, 800);
-    if (link) return link;
-    this.setStatus('searching', 'iPhone not found yet. Is Camera Studio open on it, on the same Wi-Fi?');
+    const link = await race(subnetHosts().map(host => ({ kind: 'wifi', host, port })), 160, 800, found);
+    if (link || found()) return link;
+    this.setStatus('searching', 'iPhone not found yet. Is Camera Studio open on it, on the same Wi-Fi? You can also type its address.');
     return null;
   }
 

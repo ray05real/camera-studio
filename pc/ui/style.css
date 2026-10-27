@@ -21,7 +21,7 @@ body {
   color: var(--text);
   font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   display: grid;
-  grid-template-rows: 52px 1fr auto;
+  grid-template-rows: 52px 1fr;
   overflow: hidden;
   user-select: none;
 }
@@ -61,6 +61,14 @@ button.link:hover { text-decoration: underline; }
 .phoneinfo b { color: var(--text); font-weight: 600; }
 .phoneinfo .warn { color: var(--orange); }
 .phoneinfo .bad { color: var(--red); }
+.lastTake { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; max-width: 30vw; }
+.lastTake span { overflow: hidden; text-overflow: ellipsis; }
+.lastTake .ok { color: var(--green); }
+.lastTake .err { color: #ff8b8b; }
+.lastTake .mini { width: 70px; height: 4px; border-radius: 2px; background: var(--bg); overflow: hidden; flex: none; }
+.lastTake .mini div { height: 100%; background: var(--blue); }
+.folderBtn { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 13px; padding: 6px 12px; flex: none; }
+.folderBtn svg { width: 18px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 
 /* ---------- main ---------- */
 main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
@@ -93,9 +101,17 @@ main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
 .recDot { width: 11px; height: 11px; border-radius: 50%; background: var(--red); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .25; } }
 .formatTag {
-  position: absolute; top: 14px; right: 14px; background: rgba(0, 0, 0, .5); padding: 4px 10px; border-radius: 8px;
+  position: absolute; top: 14px; right: 62px; background: rgba(0, 0, 0, .5); padding: 4px 10px; border-radius: 8px;
   font-size: 12px; font-weight: 600; color: #ddd;
 }
+.fsBtn {
+  position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; padding: 0; border-radius: 10px;
+  background: rgba(0, 0, 0, .5); display: flex; align-items: center; justify-content: center; z-index: 2;
+}
+.fsBtn:hover { background: rgba(0, 0, 0, .75); }
+.fsBtn svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; }
+.stage:fullscreen { background: #000; }
+.stage:fullscreen .recordBar { background: rgba(10, 10, 14, .92); }
 .countdownBig {
   position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
   font-size: 240px; font-weight: 800; color: #fff; text-shadow: 0 6px 40px rgba(0, 0, 0, .7); pointer-events: none;
@@ -219,21 +235,6 @@ select {
 .meter .peak { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; left: 0; opacity: .8; }
 .db { width: 52px; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .meterRow.dim { opacity: .4; }
-
-/* ---------- videos ---------- */
-.takes { background: var(--panel); border-top: 1px solid var(--line); max-height: 190px; display: flex; flex-direction: column; }
-.takesHead { display: flex; align-items: center; justify-content: space-between; padding: 7px 16px 3px; font-weight: 700; font-size: 13px; color: var(--muted); }
-.takesList { overflow-y: auto; padding: 0 16px 8px; }
-.empty { color: var(--muted); font-size: 13px; padding: 4px 0 6px; }
-.take { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 7px 0; border-top: 1px solid var(--line); }
-.take:first-child { border-top: 0; }
-.take .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.take .status { color: var(--muted); font-size: 12.5px; }
-.take .status.ok { color: var(--green); }
-.take .status.err { color: #ff8b8b; }
-.take .actions { grid-row: span 2; display: flex; gap: 6px; align-items: center; }
-.bar { height: 4px; border-radius: 2px; background: var(--bg); overflow: hidden; margin-top: 3px; }
-.bar div { height: 100%; background: var(--blue); width: 0; }
 
 .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: 420px; }
 .toast { background: #2a2933; border-left: 4px solid var(--blue); padding: 10px 14px; border-radius: 8px; box-shadow: 0 8px 30px rgba(0, 0, 0, .45); }

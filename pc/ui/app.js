@@ -398,6 +398,7 @@ document.addEventListener('keydown', e => {
   if (e.target.matches('input:not([type=range]):not([type=checkbox]), select, textarea')) return;
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) onRecordClick(); }
   if (e.key === 'g' || e.key === 'G') { prefs.grid = !prefs.grid; savePrefs(); render(); }
+  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
 });
 // buttons lose focus after a click, so the space bar always means record
 document.addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.blur(); });
@@ -560,7 +561,30 @@ for (const [form, input] of [['connectForm', 'addressInput'], ['connectForm2', '
     toast(r.error || 'Trying that address…', r.error ? 'warn' : 'info');
   });
 }
-for (const id of ['openFolder', 'openFolder2']) $(id).addEventListener('click', () => post('/api/open', { what: 'folder' }));
+$('openFolder').addEventListener('click', () => post('/api/open', { what: 'folder' }));
+
+// full screen: the picture and the record bar fill the screen (Esc or F to leave)
+function toggleFullscreen() {
+  const stage = document.querySelector('.stage');
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else stage.requestFullscreen().catch(() => {});
+}
+$('fsBtn').addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => {
+  $('fsIcon').innerHTML = document.fullscreenElement
+    ? '<path d="M7 2v5H2M18 7h-5V2M13 18v-5h5M2 13h5v5"/>'
+    : '<path d="M2 7V2h5M13 2h5v5M18 13v5h-5M7 18H2v-5"/>';
+  lastRect = '';
+  layoutOverlay();
+});
+
+// preview sharpness: a bigger, better JPEG costs more Wi-Fi
+$('previewSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || !settings()) return;
+  const size = Number(b.dataset.v);
+  set({ previewSize: size, previewQuality: size >= 1920 ? 0.8 : size >= 1280 ? 0.7 : 0.6 });
+});
 
 document.querySelectorAll('details.card').forEach(d => {
   if (prefs.closed[d.dataset.card] === true) d.open = false;
@@ -601,6 +625,7 @@ function render() {
   $('mirrorToggle').checked = prefs.mirror;
   $('countdownToggle').checked = prefs.countdown;
   renderSeg($('audioSourceSeg'), prefs.audioSource);
+  renderSeg($('previewSeg'), settings() ? settings().previewSize : 0);
   $('cleanupToggle').checked = prefs.cleanup;
 
   if (s) {
@@ -734,41 +759,37 @@ function escapeHtml(t) {
   return String(t).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 }
 
-let lastTakes = '';
+let lastTakeKey = '';
+/** One line in the top bar about the newest video (copying… / ready, with Play). */
 function renderTakes() {
-  const key = JSON.stringify(S.takes);
-  if (key === lastTakes) return;
-  lastTakes = key;
-  const list = $('takesList');
-  if (!S.takes.length) {
-    list.innerHTML = '<div class="empty">Your videos appear here after you record. They\'re saved to the iPhone\'s Photos and copied to this PC.</div>';
-    return;
+  const t = S.takes[0];
+  const key = JSON.stringify(t || null);
+  if (key === lastTakeKey) return;
+  lastTakeKey = key;
+  const box = $('lastTake');
+  box.innerHTML = '';
+  if (!t) return;
+  const text = document.createElement('span');
+  let status = STATUS[t.status] || t.status;
+  if (t.status === 'copying') status = `Copying to this PC ${Math.round(t.progress * 100)}%`;
+  if (t.status === 'ready') status = t.error ? 'Saved (with the iPhone sound)' : 'Saved ✓';
+  text.textContent = status;
+  text.className = t.error ? 'err' : t.status === 'ready' ? 'ok' : '';
+  text.title = [t.name, t.error, t.note].filter(Boolean).join(' · ');
+  box.appendChild(text);
+  if (t.status === 'copying') {
+    const bar = document.createElement('div');
+    bar.className = 'mini';
+    bar.innerHTML = `<div style="width:${(t.progress * 100).toFixed(1)}%"></div>`;
+    box.appendChild(bar);
   }
-  list.innerHTML = '';
-  for (const t of S.takes) {
-    const row = document.createElement('div');
-    row.className = 'take';
-    let status = STATUS[t.status] || t.status;
-    if (t.status === 'copying') status += ` · ${Math.round(t.progress * 100)}% of ${(t.size / 1e6).toFixed(0)} MB`;
-    if (t.status === 'ready') status += ' ✓' + (t.photos === 'saved' ? ' · also in the iPhone\'s Photos' : '');
-    const extra = [t.error, t.note].filter(Boolean).join(' ');
-    row.innerHTML = `
-      <div class="name">${escapeHtml(t.name.replace(/\.mov$/i, ''))}${t.pcMic ? ' · PC mic' : ''}${t.duration ? ' · ' + fmtTime(t.duration) : ''}</div>
-      <div class="actions"></div>
-      <div><div class="status ${t.status === 'ready' ? 'ok' : t.error ? 'err' : ''}">${escapeHtml(status)}</div>
-      ${t.status === 'copying' ? `<div class="bar"><div style="width:${(t.progress * 100).toFixed(1)}%"></div></div>` : ''}
-      ${extra ? `<div class="status ${t.error ? 'err' : ''}">${escapeHtml(extra)}</div>` : ''}</div>`;
-    if (t.status === 'ready' && t.final) {
-      const actions = row.querySelector('.actions');
-      for (const [what, label] of [['play', 'Play'], ['show', 'Show in folder']]) {
-        const btn = document.createElement('button');
-        btn.className = 'small';
-        btn.textContent = label;
-        btn.addEventListener('click', () => post('/api/open', { what, name: t.name }));
-        actions.appendChild(btn);
-      }
-    }
-    list.appendChild(row);
+  if (t.status === 'ready' && t.final) {
+    const play = document.createElement('button');
+    play.className = 'small';
+    play.textContent = 'Play';
+    play.title = t.name;
+    play.addEventListener('click', () => post('/api/open', { what: 'play', name: t.name }));
+    box.appendChild(play);
   }
 }
 

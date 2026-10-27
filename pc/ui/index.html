@@ -12,6 +12,10 @@
   <div class="brand"><img src="/icon.png" alt=""><span>Camera Studio</span></div>
   <div class="pill" id="connPill"><span class="dot"></span><span id="connText">Starting…</span></div>
   <div class="phoneinfo" id="phoneInfo"></div>
+  <div class="lastTake" id="lastTake"></div>
+  <button class="folderBtn" id="openFolder" title="Open the folder with your videos">
+    <svg viewBox="0 0 24 20"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h4.2l2.3 2.5h8.5A2.5 2.5 0 0 1 22 7v8.5a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 15.5z"/></svg>Videos
+  </button>
 </header>
 
 <main>
@@ -24,6 +28,9 @@
         <div class="recBadge" id="recBadge"><span class="recDot"></span><span id="recTime">00:00</span></div>
         <div class="formatTag" id="formatTag"></div>
       </div>
+      <button class="fsBtn" id="fsBtn" title="Full screen (F)">
+        <svg viewBox="0 0 20 20" id="fsIcon"><path d="M2 7V2h5M13 2h5v5M18 13v5h-5M7 18H2v-5"/></svg>
+      </button>
       <div class="countdownBig" id="countdownBig"></div>
       <div class="banner" id="banner"></div>
       <div class="cover" id="cover">
@@ -132,8 +139,8 @@
     <details class="card" data-card="preview">
       <summary>Preview</summary>
       <div class="row"><label class="switch"><input type="checkbox" id="gridToggle"><span></span>Grid (G)</label><label class="switch"><input type="checkbox" id="mirrorToggle"><span></span>Mirror</label></div>
-      <div class="row"><span class="label">Picture</span><div class="seg" data-key="previewSize"><button data-v="960">Smooth</button><button data-v="1280">Sharp</button></div></div>
-      <p class="note">The preview is a small copy; the recording is always full quality.</p>
+      <div class="row"><span class="label">Picture</span><div class="seg" id="previewSeg"><button data-v="960">Smooth</button><button data-v="1280">Sharp</button><button data-v="1920">Best</button></div></div>
+      <p class="note">The preview is a smaller copy so it arrives without delay; the recording is always full quality (4K). Best is sharpest but needs good Wi-Fi or the USB cable.</p>
     </details>
 
     <details class="card" data-card="connection">
@@ -141,15 +148,10 @@
       <p class="note" id="connNote"></p>
       <form id="connectForm2" class="connectForm"><input id="addressInput2" placeholder="iPhone address, e.g. 192.168.1.23" autocomplete="off"><button type="submit">Connect</button></form>
       <p class="note" id="folderNote"></p>
-      <div class="row"><button id="openFolder">Open the videos folder</button></div>
     </details>
   </aside>
 </main>
 
-<footer class="takes" id="takes">
-  <div class="takesHead"><span>Videos</span><button class="link" id="openFolder2">Open folder</button></div>
-  <div class="takesList" id="takesList"><div class="empty">Your videos appear here after you record. They're saved to the iPhone's Photos and copied to this PC.</div></div>
-</footer>
 
 <div class="toasts" id="toasts"></div>
 <script src="/app.js"></script>
